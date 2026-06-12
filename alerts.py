@@ -128,6 +128,13 @@ def build_alert(sig: SignalScore, bond: MezzanineBond, lang: str = "en") -> str:
 
     if sig.serial_count is not None and sig.serial_count >= 2:
         lines.append(f"History: {sig.serial_count} mezz issues in 36M")
+
+    # ⚡ 원문 정밀독해 이벤트 단서
+    if bond.deep_read and bond.deep_read.clues:
+        lines.append("⚡ Event clues:")
+        for c in bond.deep_read.clues:
+            lines.append(f"   {c}")
+
     if sig.tags:
         lines.append("Tags: " + " · ".join(sig.tags))
     if sig.flags:

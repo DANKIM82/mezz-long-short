@@ -194,13 +194,19 @@ async def collect_bonds(
 
 
 async def enrich_bodies(client: DartClient, bonds: list[MezzanineBond]) -> None:
-    """본문 보강(베스트에포트). daily 모드의 소수 신규건에만 사용 권장."""
+    """본문 보강(베스트에포트). daily 모드의 소수 신규건에만 사용 권장.
+
+    기본 본문 파서(풋·콜·리픽싱주기·대상자·RCPS) 이후, 원문 정밀독해
+    (deep_read)로 지배권 단서·앵커 인수자·차환 회차·누적 오버행을 추출한다.
+    """
     from body_parser import enrich_bond_from_text
+    from deep_read import enrich_deep_read
 
     async def _one(b: MezzanineBond) -> None:
         text = await client.fetch_document_text(b.rcept_no)
         if text:
             enrich_bond_from_text(b, text)
+            enrich_deep_read(b, text)
 
     await asyncio.gather(*(_one(b) for b in bonds))
 

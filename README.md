@@ -74,6 +74,24 @@ https://dart.fss.or.kr/dsaf001/main.do?rcpNo=2026...
 점수 = Σ 태그 가중치(`config.TagWeights`) → SHORT(≥1.5) / LONG(≤-0.5) / NEUTRAL.
 가중치는 백테스트 캘리브레이션 전 초기값.
 
+### 원문 정밀독해 이벤트 단서 (deep_read)
+
+라디오의 기계적 태깅만으로는 "단순 숏 → 실제로는 지배권 통합 이벤트"인 건을
+놓친다. `deep_read.py`가 신규 발행 본문에서 네 가지를 자동 추출해 알림의
+**⚡ Event clues** 섹션과 아래 태그로 띄운다.
+
+| 태그 | 단서 | 의미 |
+|---|---|---|
+| `CONTROL_CHANGE_SIGNAL` | EOD 카브아웃에 '특정 법인 단독 최대주주 변경' 예외 | 전략적 인수자 지목 → 단순 숏 위험(이벤트/스퀴즈) |
+| `ANCHOR_VALUE_UP` | 최대 배정처가 밸류업/PE/사모투자합자 성격 | 부실 희석이 아닌 밸류업 통합 가능 → 숏 약화 |
+| `MEZZ_OVERHANG_HEAVY` | 미상환 사채권표 (A+B)/C ≥ 30% | 단건이 아닌 누적 메자닌 오버행 과중 |
+| `REFI_RESTRIKE` | 채무상환자금으로 구회차 차환·소각 | 전환가 하향 재설정(리스트라이크) |
+
+예시(디알텍 제9회차): 오스템임플란트㈜ 지배권 카브아웃 + 케이메디컬밸류업
+유한회사(딜 56%, KDB 밸류업 PE) 앵커 + 6회차 차환·소각 + 누적 오버행 54.9%
+→ 라디오가 SHORT로 분류해도 알림에 이벤트 단서가 함께 떠 PM이 스퀴즈·이벤트
+리스크를 동시에 판단한다.
+
 ---
 
 ## 4. 데이터 계보 — 무엇이 정형이고 무엇이 본문인가
@@ -118,14 +136,15 @@ https://dart.fss.or.kr/dsaf001/main.do?rcpNo=2026...
 
 ```
 config.py        엔드포인트·키워드·임계값·태그가중치·알림설정
-models.py        MezzanineBond / SignalScore / CalendarEvent / ExerciseFiling
+models.py        MezzanineBond / SignalScore / CalendarEvent / ExerciseFiling / DeepReadResult
 dart_client.py   비동기 클라이언트 (정형 4종 + list + document.zip)
 parsers.py       검증 필드맵 → 모델 (RCPS 기타주식 게이트 포함)
 body_parser.py   풋·콜·리픽싱주기·대상자·RCPS 확정 (본문 휴리스틱)
+deep_read.py     원문 정밀독해: 지배권 단서·앵커 인수자·차환 회차·누적 오버행
 market_data.py   pykrx: 종가·시총·상장주식수·공매도잔고
 compliance.py    시장 인덱스(scan) + 발행사 단건 점검(daily)
 events.py        이벤트 캘린더 생성 (추정치 명시 원칙)
-analytics.py     지표 + 12개 트레이드 태그 + 점수
-alerts.py        영문 PM 알림·디지스트·Telegram
+analytics.py     지표 + 16개 트레이드 태그 + 점수
+alerts.py        영문 PM 알림·디지스트·Telegram (⚡ Event clues 포함)
 pipeline.py      daily / scan / calendar CLI + 상태 관리
 ```

@@ -180,6 +180,28 @@ def score_bond(
         tag("SQUEEZE_RISK",
             f"숏잔고 {sbr:.1f}% · 깊은 OTM · 리픽싱 소진 → 숏 진입 위험")
 
+    # 11) 원문 정밀독해 이벤트 단서 (지배권·앵커·차환·누적오버행)
+    dr = bond.deep_read
+    if dr is not None:
+        if dr.control_change:
+            tag("CONTROL_CHANGE_SIGNAL",
+                f"EOD 카브아웃: {dr.control_change} 단독 최대주주 변경 상정 "
+                f"→ 단순 숏 위험(이벤트/스퀴즈)")
+            flags.append(f"지배권 단서: {dr.control_change} 단독 최대주주 변경 가능")
+        if dr.anchor_is_value_up:
+            anc = dr.anchor_name or (dr.value_up_subscribers[0]
+                                     if dr.value_up_subscribers else "밸류업/PE")
+            pct = f" ({dr.anchor_pct:.0%})" if dr.anchor_pct else ""
+            tag("ANCHOR_VALUE_UP", f"앵커 인수자 {anc}{pct} — 밸류업/PE 성격 → 숏 약화")
+        if (dr.cumulative_overhang_pct is not None
+                and dr.cumulative_overhang_pct >= th.cumulative_overhang_heavy_pct):
+            tag("MEZZ_OVERHANG_HEAVY",
+                f"누적 메자닌 오버행 {dr.cumulative_overhang_pct:.1f}% (미상환 전체)")
+        if dr.refinance_series:
+            canc = " · 소각" if dr.refinance_cancel else ""
+            tag("REFI_RESTRIKE",
+                f"구 {', '.join(dr.refinance_series)} 차환{canc} → 전환가 하향 재설정")
+
     # 정보 부족 플래그
     if bond.sec_type in (SecurityType.CB, SecurityType.BW) \
             and not bond.refixing_schedule and bond.refix_period_months is None:
@@ -201,6 +223,8 @@ def score_bond(
         short_balance_ratio=sbr, conv_start=bond.conv_start,
         days_to_unlock=d_unlock, days_to_refix=d_refix,
         serial_count=serial_count, tags=tags, score=score, side=side,
+        cumulative_overhang_pct=(bond.deep_read.cumulative_overhang_pct
+                                 if bond.deep_read else None),
         rationale=rationale, flags=flags,
     )
 

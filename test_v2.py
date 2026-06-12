@@ -192,4 +192,68 @@ ok(len(loaded) == 3 and loaded[0].refix_period_months == 3,
    "bonds.jsonl 누적 + dedupe + 본문보강값 직렬화 보존")
 os.remove("state/_t_seen.json"); os.remove("state/_t_bonds.jsonl")
 
+# ---------------------------------------------------------------- 원문 정밀독해
+from deep_read import (deep_read, detect_control_change, detect_anchor_subscriber,
+                       detect_refinance, detect_cumulative_overhang,
+                       enrich_deep_read)
+
+_FIX = os.path.join(os.path.dirname(__file__), "tests", "fixtures", "drtech_cb9.txt")
+drtext = open(_FIX, encoding="utf-8").read() if os.path.exists(_FIX) else ""
+if drtext:
+    ent, ctx = detect_control_change(drtext)
+    ok(ent == "오스템임플란트㈜", f"deep: 지배권 단서 추출 ({ent})")
+    a_name, a_amt, a_pct, a_vu, vu = detect_anchor_subscriber(drtext, 27_000_000_000)
+    ok(a_name == "케이메디컬밸류업 유한회사" and a_amt == 15_000_000_000,
+       "deep: 앵커 인수자 = 최대 배정처(미상환표 오염 없음)")
+    ok(abs(a_pct - 15/27) < 1e-6 and a_vu, f"deep: 앵커 비중 {a_pct:.0%}·밸류업 판정")
+    series, cancel = detect_refinance(drtext)
+    ok(series == ["6회차"] and cancel,
+       "deep: 차환 대상=6회차만(7·8회차 미상환표 오염 없음)·소각")
+    ok(detect_cumulative_overhang(drtext) == 54.87, "deep: 누적 오버행 54.87%")
+
+    dr = deep_read(drtext, face_amount=27_000_000_000)
+    ok(len(dr.clues) == 4, f"deep: clues 4종 생성 ({len(dr.clues)})")
+    ok(any("오스템임플란트" in c for c in dr.clues)
+       and any("56% of deal" in c for c in dr.clues)
+       and any("6회차" in c for c in dr.clues)
+       and any("54.9%" in c for c in dr.clues), "deep: clues 내용 정확")
+
+    # bond 통합 + 태깅 + 알림
+    drb = parse_bond({
+        "_sec_kind": "cb", "rcept_no": "20260611000651", "corp_code": "00214680",
+        "corp_name": "디알텍", "corp_cls": "K", "bd_fta": "27,000,000,000",
+        "bd_intr_ex": "0.0", "bd_intr_sf": "1.0", "bd_mtd": "2031-06-23",
+        "bdis_mthn": "사모", "cv_prc": "1,360", "cvisstk_cnt": "19,852,941",
+        "cvisstk_tisstk_vs": "19.21", "cvrqpd_bgd": "2027-06-23",
+        "cvrqpd_edd": "2031-05-23", "act_mktprcfl_cvprc_lwtrsprc": "952",
+        "fdpp_fclt": "7,000,000,000", "fdpp_op": "8,000,000,000",
+        "fdpp_dtrp": "12,000,000,000", "pymd": "2026-06-23", "bddd": "2026-06-11",
+    }, stock_code="214680", disclosed_date=dt.date(2026, 6, 11))
+    enrich_deep_read(drb, drtext)
+    ok(drb.deep_read is not None and drb.deep_read.cumulative_overhang_pct == 54.87,
+       "deep: bond.deep_read 부착·직렬화 대상")
+    drsnap = MarketSnapshot(stock_code="214680", last_close=1273.0,
+                            market_cap=106e9, shares_outstanding=83_477_056)
+    drsig = score_bond(drb, drsnap, None, serial_count=4, asof=today)
+    for t in ("CONTROL_CHANGE_SIGNAL", "ANCHOR_VALUE_UP", "MEZZ_OVERHANG_HEAVY",
+              "REFI_RESTRIKE"):
+        ok(t in drsig.tags, f"deep: 태그 {t}")
+    ok(drsig.cumulative_overhang_pct == 54.87, "deep: SignalScore 누적오버행 전파")
+    dralert = build_alert(drsig, drb, lang="en")
+    ok("⚡ Event clues:" in dralert and "오스템임플란트㈜" in dralert,
+       "deep: 알림 Event clues 섹션 렌더")
+    # 직렬화 라운드트립 (deep_read 보존)
+    append_bonds_store("state/_t_dr.jsonl", [drb])
+    rb = load_bonds_store("state/_t_dr.jsonl")[0]
+    ok(rb.deep_read and rb.deep_read.control_change == "오스템임플란트㈜",
+       "deep: bonds.jsonl 라운드트립 시 deep_read 보존")
+    os.remove("state/_t_dr.jsonl")
+
+    # 음성 케이스: 일반 발행문(단서 없음)
+    plain = "본 사채는 운영자금 조달 목적의 공모 전환사채이며 특이사항 없음."
+    ndr = deep_read(plain)
+    ok(not ndr.control_change and not ndr.clues, "deep: 단서 없는 본문 → 빈 결과")
+else:
+    print("  (skip) drtech fixture 없음")
+
 print(f"\n전체 {PASS}개 검증 통과 ✓")

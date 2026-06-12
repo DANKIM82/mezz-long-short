@@ -91,6 +91,9 @@ class MezzanineBond(BaseModel):
     call_option_detail: Optional[str] = None
     subscribers: list[str] = Field(default_factory=list, description="대상자(본문 휴리스틱)")
 
+    # --- 원문 정밀독해 (이벤트 단서) ---
+    deep_read: Optional["DeepReadResult"] = None
+
     # ------------------------------------------------------------------ #
     @property
     def is_private(self) -> bool:
@@ -105,6 +108,23 @@ class MezzanineBond(BaseModel):
     def anchor_date(self) -> Optional[dt.date]:
         """일정 계산 기준일: 납입일 → 이사회일 → 공시일."""
         return self.pay_date or self.board_date or self.disclosed_date
+
+
+class DeepReadResult(BaseModel):
+    """원문 정밀독해 산출 — 이벤트 단서(정형·기본 본문 파서가 못 잡는 항목)."""
+
+    control_change: Optional[str] = Field(None, description="EOD 카브아웃 전략적 인수자")
+    control_change_detail: Optional[str] = None
+    anchor_name: Optional[str] = Field(None, description="최대 배정 인수자")
+    anchor_amount: Optional[float] = None
+    anchor_pct: Optional[float] = Field(None, description="앵커 배정액 / 권면총액")
+    anchor_is_value_up: bool = False
+    value_up_subscribers: list[str] = Field(default_factory=list)
+    refinance_series: list[str] = Field(default_factory=list, description="차환 대상 회차")
+    refinance_cancel: bool = False
+    cumulative_overhang_pct: Optional[float] = Field(
+        None, description="미상환 사채권 기준 (A+B)/C %")
+    clues: list[str] = Field(default_factory=list, description="알림용 사람이 읽는 단서")
 
 
 class ComplianceFlag(BaseModel):
@@ -146,6 +166,8 @@ class SignalScore(BaseModel):
     days_to_unlock: Optional[int] = None
     days_to_refix: Optional[int] = None
     serial_count: Optional[int] = None
+    cumulative_overhang_pct: Optional[float] = Field(
+        None, description="누적 메자닌 오버행 (deep_read)")
 
     tags: list[str] = Field(default_factory=list)
     score: float = 0.0
@@ -176,3 +198,7 @@ class ExerciseFiling(BaseModel):
     stock_code: Optional[str] = None
     report_nm: str = ""
     rcept_dt: Optional[dt.date] = None
+
+
+# forward-ref 해소 (MezzanineBond.deep_read → DeepReadResult)
+MezzanineBond.model_rebuild()

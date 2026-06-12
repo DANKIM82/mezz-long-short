@@ -42,6 +42,23 @@ REPORT_NAME_KEYWORDS: dict[str, list[str]] = {
 # 권리행사(실물 공급) 모니터 — 거래소공시(I) 채널
 EXERCISE_KEYWORDS = ["전환청구권행사", "신주인수권행사", "교환청구권행사", "전환가액의조정", "전환가액의 조정"]
 
+# 원문 정밀독해 키워드
+# 지배권 변경 단서(EOD 카브아웃 등)
+CONTROL_CHANGE_KEYWORDS = [
+    "단독 최대주주", "최대주주로 변경", "최대주주가 되", "경영권의 양도",
+    "경영권 인수", "지배권",
+]
+# 밸류업/PE/경영참여 성격 인수자 — 단순 코스닥벤처펀드와 구별
+VALUE_UP_KEYWORDS = [
+    "기업가치제고", "밸류업", "value-up", "value up", "사모투자합자",
+    "경영참여", "그로쓰", "프라이빗에쿼티", "PEF", "사모투자",
+]
+# 지배권 단서에서 제외할 일반명사(자기지칭 등)
+GENERIC_ENTITY_STOP = {
+    "발행회사", "회사", "최대주주", "당사", "본건", "동사", "그", "이",
+    "인수인", "사채권자", "대주주",
+}
+
 # 공시신뢰성 리스크 키워드
 COMPLIANCE_KEYWORDS = [
     "불성실공시법인", "공시불이행", "공시번복", "공시변경",
@@ -68,6 +85,7 @@ class Thresholds:
     serial_window_days: int = 365 * 3
     refix_default_period_m: int = 3   # 사모 관행: 매 3개월 리픽싱 (추정치)
     calendar_horizon_days: int = 60
+    cumulative_overhang_heavy_pct: float = 30.0  # 누적 메자닌 오버행 과중 기준
 
 
 # --------------------------------------------------------------------------- #
@@ -88,6 +106,11 @@ class TagWeights:
     COMPLIANCE_AVOID: float = 2.0    # 불성실공시·횡령배임 이력
     SQUEEZE_RISK: float = -0.75      # 숏 과밀 + 리픽싱 소진 → 숏 위험
     REFIX_EXHAUSTED: float = -0.5    # 70%룰 한도 소진 → 추가 희석 제한
+    # --- 원문 정밀독해 이벤트 단서 ---
+    CONTROL_CHANGE_SIGNAL: float = -0.75  # 지배권 변경/전략적 인수 단서 → 단순숏 위험(이벤트)
+    ANCHOR_VALUE_UP: float = -0.5         # 밸류업/PE 앵커 인수자 → 숏 약화
+    MEZZ_OVERHANG_HEAVY: float = 1.0      # 누적 메자닌 오버행 과중
+    REFI_RESTRIKE: float = 0.5            # 구회차 차환·소각 = 전환가 재스트라이크(하향)
 
     def weight(self, tag: str) -> float:
         return float(getattr(self, tag, 0.0))

@@ -1,0 +1,4 @@
+httpx>=0.27
+pydantic>=2.6
+pandas>=2.1
+pykrx>=1.0.45
